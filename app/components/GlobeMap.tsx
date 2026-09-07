@@ -327,6 +327,8 @@ export default function GlobeMap({ entries, selectedId, draftLocation, focus, la
       canvasContextAttributes: { antialias: true },
     });
     mapRef.current = map;
+    // Amplify small trackpad gestures while retaining MapLibre's frame-based zoom handling.
+    map.scrollZoom.setZoomRate(1 / 25);
     map.addControl(new NavigationControl({ visualizePitch: true, showCompass: true }), "top-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
