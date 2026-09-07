@@ -6,6 +6,9 @@ let initialization: Promise<void> | null = null;
 export async function ensureDatabase() {
   const db = env.DB;
   if (!db) throw new Error("Local D1 database is unavailable");
+  // Production schemas are applied by the hosting platform from drizzle/.
+  // Keep the local demo initializer out of hosted databases.
+  if (import.meta.env.PROD) return db;
   if (ready) return db;
   initialization ??= initializeDatabase(db);
   try {
