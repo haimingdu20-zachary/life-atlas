@@ -1,0 +1,1 @@
+ALTER TABLE `life_profiles` RENAME COLUMN "values" TO "core_values";

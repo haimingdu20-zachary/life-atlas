@@ -1,0 +1,1 @@
+ALTER TABLE `life_goals` ADD `time_mode` text DEFAULT 'point' NOT NULL;

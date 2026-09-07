@@ -1,0 +1,7 @@
+Offline world data: Natural Earth vector data, version 5.x.
+Source: https://www.naturalearthdata.com/
+Natural Earth data is in the public domain.
+
+Included datasets:
+- 1:110m Admin 0 Countries
+- 1:10m Populated Places (filtered to major cities and capitals)

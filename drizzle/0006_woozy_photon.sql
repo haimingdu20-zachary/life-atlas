@@ -1,0 +1,1 @@
+ALTER TABLE `life_entries` ADD `emotion_tags` text DEFAULT '[]' NOT NULL;

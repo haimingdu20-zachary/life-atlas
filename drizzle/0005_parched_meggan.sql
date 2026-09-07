@@ -1,0 +1,1 @@
+ALTER TABLE `life_entries` ADD `life_phase` text DEFAULT '' NOT NULL;
