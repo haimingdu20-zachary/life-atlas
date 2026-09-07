@@ -24,6 +24,20 @@ button { color: inherit; }
 .earth-app::after { content: ""; position: absolute; z-index: 3; inset: 0; pointer-events: none; background: repeating-linear-gradient(180deg, transparent 0 5px, rgba(158,220,226,.025) 6px); opacity: .4; }
 .globe-map { position: absolute; z-index: 0; inset: 0; background: radial-gradient(circle at 50% 45%, #14323b, #03090c 68%); }
 .globe-map canvas { outline: none; }
+
+.home-screen-help { margin: 12px 18px 0; flex-shrink: 0; border: 1px solid var(--line); border-radius: 12px; color: #c7d6d1; background: rgba(255,255,255,.03); font-size: 14px; }
+.home-screen-help summary { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.home-screen-help summary::-webkit-details-marker { display: none; }
+.home-screen-help summary::after { content: "+"; margin-left: auto; color: var(--coral); font-size: 20px; }
+.home-screen-help[open] summary::after { content: "−"; }
+.home-screen-help summary:focus-visible { outline: 2px solid var(--coral); outline-offset: 3px; border-radius: 12px; }
+.home-screen-help > div { max-height: 35dvh; overflow-y: auto; padding: 0 12px 12px; line-height: 1.65; }
+.home-screen-help p { margin: 10px 0 0; }
+.home-screen-help strong { color: #f4f0e7; }
+.home-screen-help .home-screen-note { color: var(--muted); }
+.experience-library:has(.home-screen-help[open]) { overflow-y: auto; }
+.experience-library:has(.home-screen-help[open]) .library-list { flex: none; height: auto; overflow: visible; }
+@media (display-mode: standalone) { .home-screen-help { display: none; } }
 .globe-map::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 54% 48%, transparent 28%, rgba(0,8,12,.08) 58%, rgba(0,6,9,.48) 115%), linear-gradient(180deg, rgba(3,10,13,.3), transparent 20%, transparent 72%, rgba(3,10,13,.42)); }
 .maplibregl-ctrl-top-right { top: 76px; right: 18px; }
 .maplibregl-ctrl-group { overflow: hidden; border: 1px solid var(--line); border-radius: 13px !important; background: rgba(6,17,22,.72) !important; box-shadow: 0 12px 35px rgba(0,0,0,.2) !important; backdrop-filter: blur(14px); }

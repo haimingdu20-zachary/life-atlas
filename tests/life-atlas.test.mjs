@@ -27,3 +27,16 @@ test("renders the local administrator console", async () => {
   assert.match(html, /管理后台/);
   assert.match(html, /数据概览/);
 });
+
+test("renders complete install metadata for the private web app", async () => {
+  const response = await render();
+  const html = await response.text();
+  const manifests = html.match(/<link[^>]*rel="manifest"[^>]*>/g) || [];
+  assert.equal(manifests.length, 1);
+  assert.match(manifests[0], /crossorigin="use-credentials"/i);
+  const viewports = html.match(/<meta[^>]*name="viewport"[^>]*>/g) || [];
+  assert.equal(viewports.length, 1);
+  assert.match(viewports[0], /viewport-fit=cover/);
+  assert.ok(html.includes('<meta name="apple-mobile-web-app-capable" content="yes"'));
+  assert.match(html, /<link[^>]*rel="apple-touch-icon"[^>]*apple-touch-icon.png/);
+});

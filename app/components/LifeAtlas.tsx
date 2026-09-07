@@ -3,7 +3,7 @@
 
 import {
   BookOpen, CalendarDays, Compass, Crosshair, Download, Edit3, LoaderCircle,
-  Map as MapIcon, MapPin, Plus, Route, Search, Settings2, Sparkles, Trash2, X,
+  Map as MapIcon, MapPin, Plus, Route, Search, Settings2, Smartphone, Sparkles, Trash2, X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { LifeEntry, LifeMedia } from "../lib/types";
@@ -363,6 +363,15 @@ export default function LifeAtlas() {
             <button onClick={() => setLibraryOpen(false)} aria-label="关闭经历列表"><X /></button>
           </div>
           <label className="library-search"><Search size={15} /><input value={librarySearch} onChange={event => { setLibrarySearch(event.target.value); setSelected(null); }} placeholder="搜索地点、经历或标签" /></label>
+          <details className="home-screen-help">
+            <summary><Smartphone size={17} />添加到手机桌面</summary>
+            <div>
+              <p><strong>iPhone：</strong>用 Safari 打开本站，点“分享”→“添加到主屏幕”。如果有“作为 Web App 打开”，请保持开启。</p>
+              <p><strong>安卓：</strong>用 Chrome 打开本站，点右上角菜单→“添加到主屏幕”或“安装应用”。</p>
+              <p>在微信里打开时，请先转到手机浏览器。添加后点桌面的“人生地图”图标即可进入，首次打开可能需要重新登录同一个 ChatGPT 账号。</p>
+              <p className="home-screen-note">这是需要联网的网页 App，与本站共用线上记录。</p>
+            </div>
+          </details>
           <div className="memory-review">
             <label className="memory-year"><CalendarDays size={16} /><span>回看</span>
               <select aria-label="回看年份" value={memoryYear} onChange={event => { setMemoryYear(event.target.value); setSelected(null); }}>
