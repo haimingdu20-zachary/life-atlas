@@ -361,7 +361,7 @@ export default function GlobeMap({ entries, selectedId, draftLocation, focus, la
     map.on("mousemove", event => {
       if (!map.getLayer("life-entry-dot")) return;
       const onEntry = map.queryRenderedFeatures(event.point, { layers: ["memory-cluster", "life-entry-dot"] }).length > 0;
-      map.getCanvas().style.cursor = onEntry ? "pointer" : "crosshair";
+      map.getCanvasContainer().classList.toggle("maplibregl-track-pointer", onEntry);
     });
     const reportViewport = () => {
       const center = map.getCenter();
