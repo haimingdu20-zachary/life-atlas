@@ -6,6 +6,7 @@ export function isLocalRequest(request: Request) {
 }
 
 export function visitorOwner(request: Request) {
+  if (import.meta.env.ATLAS_PRIVATE_HOST) return validSession(request.headers.get("cookie")) ? personalOwner() : null;
   if (isLocalRequest(request)) return "legacy";
   const authenticatedUser = request.headers.get("oai-authenticated-user-id")?.trim();
   if (authenticatedUser) return `user_${authenticatedUser}`;
@@ -25,3 +26,4 @@ export function ownerPattern(owner: string) {
 export function ownedId(owner: string, id = crypto.randomUUID()) {
   return owner === "legacy" ? id : `${owner}.${id.replace(/^visitor_[a-f0-9-]{36}\./, "")}`;
 }
+import { personalOwner, validSession } from "../../runtime/private-session";

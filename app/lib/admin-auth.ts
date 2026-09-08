@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { validSession } from "../../runtime/private-session";
 
 export type AdminIdentity = {
   displayName: string;
@@ -16,6 +17,9 @@ export function isLocalAdminUrl(value: string) {
 }
 
 export function authorizeAdminRequest(request: Request): { ok: true; identity: AdminIdentity } | { ok: false; status: 401 | 403; error: string } {
+  if (import.meta.env.ATLAS_PRIVATE_HOST) return validSession(request.headers.get("cookie"))
+    ? { ok: true, identity: { displayName: "海铭", email: "owner@life-atlas", local: false } }
+    : { ok: false, status: 401, error: "请先解锁你的人生地图" };
   if (isLocalAdminUrl(request.url)) return { ok: true, identity: { displayName: "本地管理员", email: "local@life-atlas", local: true } };
   const userId = request.headers.get("oai-authenticated-user-id");
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "";
