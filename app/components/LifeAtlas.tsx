@@ -19,7 +19,7 @@ import ApiSettings from "./ApiSettings";
 import { createTravelJournal, entryYear, filterMemories } from "../lib/travel-journal";
 
 type Coordinates = { lat: number; lng: number };
-type PlaceResult = { name: string; lat: number; lng: number; type?: string };
+type PlaceResult = { name: string; lat: number; lng: number; type?: string; distanceMeters?: number };
 
 const categories: Record<string, { label: string; color: string }> = {
   growth: { label: "成长", color: "#ff9665" },
@@ -426,7 +426,7 @@ export default function LifeAtlas() {
 
 function EntryCard({ entry, onClose, onEdit, onDelete, relatedCount, onRelated }: { entry: LifeEntry; onClose: () => void; onEdit: (locationName: string) => void; onDelete: () => void; relatedCount: number; onRelated: () => void }) {
   const [media, setMedia] = useState<LifeMedia[]>([]);
-  const [resolvedAddress, setResolvedAddress] = useState<{ key: string; name: string } | null>(null);
+  const [resolvedAddress, setResolvedAddress] = useState<{ key: string; name: string; distanceMeters?: number } | null>(null);
   const addressKey = `${entry.id}:${entry.latitude}:${entry.longitude}:${entry.locationName}`;
   const displayedLocation = resolvedAddress?.key === addressKey ? resolvedAddress.name : entry.locationName;
   useEffect(() => {
@@ -439,7 +439,7 @@ function EntryCard({ entry, onClose, onEdit, onDelete, relatedCount, onRelated }
       const result = data.results?.[0];
       const sameArea = data.areaName?.replace(/\s/g, "") === entry.locationName.replace(/\s/g, "");
       if (!controller.signal.aborted && sameArea && data.source === "online" && result?.name && !["city", "country", "state"].includes(result.type || "")) {
-        setResolvedAddress({ key: addressKey, name: result.name.endsWith("附近") ? result.name : `${result.name}附近` });
+        setResolvedAddress({ key: addressKey, name: result.name.endsWith("附近") ? result.name : `${result.name}附近`, distanceMeters: result.distanceMeters });
       }
     }).catch(() => {});
     return () => controller.abort();
@@ -463,7 +463,7 @@ function EntryCard({ entry, onClose, onEdit, onDelete, relatedCount, onRelated }
       <div className="entry-card-meta"><i style={{ background: categories[entry.category]?.color }} />{emotionLabel}{phaseLabel ? ` · ${phaseLabel}` : ""} · {formatDate(entry.occurredAt)}</div>
       <h2>{entry.title}</h2>
       <div className="entry-card-place"><MapPin size={14} /><span>{displayedLocation}</span></div>
-      {displayedLocation !== entry.locationName && <p className="entry-location-note">按地图选点自动识别，可在编辑中确认具体店名。<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>}
+      {displayedLocation !== entry.locationName && <p className="entry-location-note">按地图选点自动识别，可在编辑中确认具体店名。{resolvedAddress?.distanceMeters !== undefined && <span>参考地标距选点约 {Math.max(10, Math.round(resolvedAddress.distanceMeters / 10) * 10)} 米。</span>}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>}
       {entry.summary && <p className="entry-card-summary">{entry.summary}</p>}
       {entry.detail && <p className="entry-card-detail">{entry.detail}</p>}
       <div className="entry-card-tags">{entry.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>

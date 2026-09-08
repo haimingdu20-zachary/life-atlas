@@ -7,7 +7,7 @@ type MultiPolygonGeometry = { type: "MultiPolygon"; coordinates: Position[][][] 
 type CountryFeature = { geometry: PolygonGeometry | MultiPolygonGeometry; properties: { name?: string; name_en?: string; name_zh?: string; admin?: string; iso2?: string; label_x?: number; label_y?: number } };
 type CityFeature = { geometry: { type: "Point"; coordinates: Position }; properties: { name?: string; name_en?: string; local_name?: string; country?: string; admin1?: string | null; population?: number; rank?: number } };
 type OfflineData = { countries: CountryFeature[]; cities: CityFeature[] };
-type PlaceResult = { name: string; lat: number; lng: number; type: string };
+type PlaceResult = { name: string; lat: number; lng: number; type: string; distanceMeters?: number };
 
 type LookupResult = { results: PlaceResult[]; source: "online" | "offline"; provider?: "photon" | "nominatim"; areaName?: string };
 const resultCache = new Map<string, LookupResult & { expiresAt: number }>();
@@ -95,7 +95,7 @@ async function photonLookup(query: string | undefined, latitude: number, longitu
   const url = new URL(isReverse ? "https://photon.komoot.io/reverse" : "https://photon.komoot.io/api");
   if (isReverse) {
     url.searchParams.set("lat", String(latitude)); url.searchParams.set("lon", String(longitude));
-    url.searchParams.set("radius", "0.3");
+    url.searchParams.set("radius", "1");
   } else url.searchParams.set("q", query!);
   url.searchParams.set("limit", isReverse ? "1" : "5");
   // Omitting lang preserves local Chinese place names on the public Photon server.
@@ -106,11 +106,13 @@ async function photonLookup(query: string | undefined, latitude: number, longitu
     const p = feature.properties || {};
     const point = feature.geometry?.coordinates;
     if (!point || !Number.isFinite(point[0]) || Math.abs(point[0]) > 180 || !Number.isFinite(point[1]) || Math.abs(point[1]) > 90) return [];
+    const distanceMeters = isReverse ? Math.round(distanceKm([longitude, latitude], point) * 1000) : undefined;
+    if (distanceMeters !== undefined && distanceMeters > 1000) return [];
     const parts = [p.countrycode === "CN" ? "中国" : p.country, p.state, p.city, p.county, p.district, p.locality, p.street, p.housenumber, p.name].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
     const name = [...new Set(parts)].join(" · ");
     if (!name) return [];
     // Reverse results describe a nearby mapped object, not a confirmed visited venue.
-    return [{ name: isReverse ? `${name}附近` : name, lat: isReverse ? latitude : point[1], lng: isReverse ? longitude : point[0], type: String(p.type || p.osm_value || "place") }];
+    return [{ name: isReverse ? `${name}附近` : name, lat: isReverse ? latitude : point[1], lng: isReverse ? longitude : point[0], type: String(p.type || p.osm_value || "place"), ...(isReverse ? { distanceMeters } : {}) }];
   });
 }
 

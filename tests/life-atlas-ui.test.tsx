@@ -136,10 +136,11 @@ describe("globe map experience workflows", () => {
     entryCollection = [{ ...entry, locationName: "中国 · 北京" }];
     const detailedName = "中国 · 北京市 · 测试区 · 测试路 · 测试建筑附近";
     const defaultFetch = fetch;
-    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).startsWith("/api/geocode?lat=") ? Promise.resolve(Response.json({ source: "online", provider: "photon", areaName: "中国 · 北京", results: [{ name: detailedName, type: "house", lat: entry.latitude, lng: entry.longitude }] })) : defaultFetch(input, init)));
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).startsWith("/api/geocode?lat=") ? Promise.resolve(Response.json({ source: "online", provider: "photon", areaName: "中国 · 北京", results: [{ name: detailedName, type: "house", lat: entry.latitude, lng: entry.longitude, distanceMeters: 314 }] })) : defaultFetch(input, init)));
     const user = userEvent.setup(); await renderReady();
     await user.click(screen.getByTestId("mock-entry"));
     expect(await screen.findByText(detailedName)).toBeTruthy();
+    expect(screen.getByText("参考地标距选点约 310 米。")).toBeTruthy();
     expect(calls.some(call => call.method === "PATCH")).toBe(false);
     await user.click(screen.getByRole("button", { name: "编辑经历" }));
     expect((screen.getByLabelText("具体地点") as HTMLInputElement).value).toBe(detailedName);

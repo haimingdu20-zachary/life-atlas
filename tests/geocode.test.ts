@@ -13,6 +13,8 @@ it("反查建筑级地址并保留用户选点，相邻场所不会共用城市�
   expect(first).toMatchObject({ results: [expect.objectContaining({ lat: 39.91234, lng: 116.42345 })] });
   expect(first).toMatchObject({ source: "online", provider: "photon", areaName: "中国 · 北京", results: [expect.objectContaining({ name: "中国 · 北京市 · 测试区 · 测试路 · 88 · 测试建筑附近" })] });
   expect(new URL(String(vi.mocked(fetch).mock.calls[0][0])).pathname).toBe("/reverse");
+  expect(new URL(String(vi.mocked(fetch).mock.calls[0][0])).searchParams.get("radius")).toBe("1");
+  expect(first).toMatchObject({ results: [expect.objectContaining({ distanceMeters: expect.any(Number) })] });
   await GET(request("lat=39.91334&lng=116.42345"));
   const cached = await (await GET(request("lat=39.91234&lng=116.42345"))).json();
   expect(cached).toMatchObject({ source: "online", cached: true });
@@ -30,13 +32,13 @@ it("较慢的地址响应仍能返回，超时后的城市回退不会永久缓�
   await vi.advanceTimersByTimeAsync(1500);
   expect(await (await slow).json()).toMatchObject({ source: "online" });
   vi.mocked(fetch).mockImplementation((_url, init?: RequestInit) => new Promise((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true })));
-  const pending = GET(request("lat=39.92&lng=116.42"));
+  const pending = GET(request("lat=39.915&lng=116.42"));
   await vi.advanceTimersByTimeAsync(8000);
-  expect(await (await pending).json()).toMatchObject({ source: "offline", results: [expect.objectContaining({ name: "中国 · 北京", lat: 39.92, lng: 116.42 })] });
-  expect(await (await GET(request("lat=39.92&lng=116.42"))).json()).toMatchObject({ source: "offline", cached: true });
+  expect(await (await pending).json()).toMatchObject({ source: "offline", results: [expect.objectContaining({ name: "中国 · 北京", lat: 39.915, lng: 116.42 })] });
+  expect(await (await GET(request("lat=39.915&lng=116.42"))).json()).toMatchObject({ source: "offline", cached: true });
   await vi.advanceTimersByTimeAsync(15_001);
   vi.mocked(fetch).mockResolvedValue(Response.json(photonResult()));
-  expect(await (await GET(request("lat=39.92&lng=116.42"))).json()).toMatchObject({ source: "online" });
+  expect(await (await GET(request("lat=39.915&lng=116.42"))).json()).toMatchObject({ source: "online" });
 });
 
 it("离线仅匹配城市查询，详细店名不会被替换成北京市中心", async () => {
@@ -80,4 +82,12 @@ it("未启用第三方地址授权时不发送任何坐标给 Photon", async () 
   await GET(request("lat=39.91234&lng=116.42345"));
   expect(fetch).toHaveBeenCalledOnce();
   expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain("nominatim.openstreetmap.org");
+});
+
+
+it("超过一公里的远处地标不能被当成当前选点附近地址", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url) => String(url).includes("photon.komoot.io") ? Response.json({ features: [{ properties: { name: "远处建筑", type: "house" }, geometry: { coordinates: [116.8, 39.9] } }] }) : Response.json({ error: "No address" })));
+  const { GET } = await import("../app/api/geocode/route");
+  const result = await (await GET(request("lat=39.91234&lng=116.42345"))).json();
+  expect(result).toMatchObject({ source: "offline", results: [expect.objectContaining({ name: "中国 · 北京" })] });
 });
