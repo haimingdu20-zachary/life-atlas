@@ -354,7 +354,7 @@ export default function LifeAtlas() {
         <EntryCard
           entry={selected}
           onClose={() => setSelected(null)}
-          onEdit={() => { setEditing(selected); setEditorOpen(true); }}
+          onEdit={locationName => { setEditing({ ...selected, locationName }); setEditorOpen(true); }}
           onDelete={() => void deleteEntry(selected)}
           relatedCount={entries.filter(entry => entry.locationName === selected.locationName).length}
           onRelated={() => { setMemoryYear("all"); setLibrarySearch(selected.locationName); setSelected(null); setLibraryOpen(true); }}
@@ -424,8 +424,26 @@ export default function LifeAtlas() {
   );
 }
 
-function EntryCard({ entry, onClose, onEdit, onDelete, relatedCount, onRelated }: { entry: LifeEntry; onClose: () => void; onEdit: () => void; onDelete: () => void; relatedCount: number; onRelated: () => void }) {
+function EntryCard({ entry, onClose, onEdit, onDelete, relatedCount, onRelated }: { entry: LifeEntry; onClose: () => void; onEdit: (locationName: string) => void; onDelete: () => void; relatedCount: number; onRelated: () => void }) {
   const [media, setMedia] = useState<LifeMedia[]>([]);
+  const [resolvedAddress, setResolvedAddress] = useState<{ key: string; name: string } | null>(null);
+  const addressKey = `${entry.id}:${entry.latitude}:${entry.longitude}:${entry.locationName}`;
+  const displayedLocation = resolvedAddress?.key === addressKey ? resolvedAddress.name : entry.locationName;
+  useEffect(() => {
+    // Older offline records contain only country/city. Preserve all user-written names.
+    if (entry.locationName.split("·").length > 2) return;
+    const controller = new AbortController();
+    fetch(`/api/geocode?lat=${entry.latitude}&lng=${entry.longitude}`, { signal: controller.signal }).then(async response => {
+      if (!response.ok) return;
+      const data = await response.json() as { source?: string; areaName?: string; results?: PlaceResult[] };
+      const result = data.results?.[0];
+      const sameArea = data.areaName?.replace(/\s/g, "") === entry.locationName.replace(/\s/g, "");
+      if (!controller.signal.aborted && sameArea && data.source === "online" && result?.name && !["city", "country", "state"].includes(result.type || "")) {
+        setResolvedAddress({ key: addressKey, name: result.name.endsWith("附近") ? result.name : `${result.name}附近` });
+      }
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [addressKey, entry.latitude, entry.longitude, entry.locationName]);
   useEffect(() => {
     let active = true;
     fetch(`/api/media?entryId=${entry.id}`).then(async response => await response.json() as { media?: LifeMedia[] }).then(data => { if (active) setMedia(data.media || []); }).catch(() => {});
@@ -438,13 +456,14 @@ function EntryCard({ entry, onClose, onEdit, onDelete, relatedCount, onRelated }
   return (
     <section className="entry-map-card">
       <div className="entry-card-actions">
-        <button onClick={onEdit} aria-label="编辑经历"><Edit3 size={16} /></button>
+        <button onClick={() => onEdit(displayedLocation)} aria-label="编辑经历"><Edit3 size={16} /></button>
         <button onClick={onClose} aria-label="关闭"><X size={17} /></button>
       </div>
       {cover && <img className="entry-card-cover" src={cover.url} alt="" />}
       <div className="entry-card-meta"><i style={{ background: categories[entry.category]?.color }} />{emotionLabel}{phaseLabel ? ` · ${phaseLabel}` : ""} · {formatDate(entry.occurredAt)}</div>
       <h2>{entry.title}</h2>
-      <div className="entry-card-place"><MapPin size={14} />{entry.locationName}</div>
+      <div className="entry-card-place"><MapPin size={14} /><span>{displayedLocation}</span></div>
+      {displayedLocation !== entry.locationName && <p className="entry-location-note">按地图选点自动识别，可在编辑中确认具体店名。<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>}
       {entry.summary && <p className="entry-card-summary">{entry.summary}</p>}
       {entry.detail && <p className="entry-card-detail">{entry.detail}</p>}
       <div className="entry-card-tags">{entry.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>

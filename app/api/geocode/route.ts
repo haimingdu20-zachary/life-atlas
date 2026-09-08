@@ -9,7 +9,7 @@ type CityFeature = { geometry: { type: "Point"; coordinates: Position }; propert
 type OfflineData = { countries: CountryFeature[]; cities: CityFeature[] };
 type PlaceResult = { name: string; lat: number; lng: number; type: string };
 
-type LookupResult = { results: PlaceResult[]; source: "online" | "offline" };
+type LookupResult = { results: PlaceResult[]; source: "online" | "offline"; provider?: "photon" | "nominatim"; areaName?: string };
 const resultCache = new Map<string, LookupResult & { expiresAt: number }>();
 const pendingLookups = new Map<string, Promise<LookupResult>>();
 
@@ -91,14 +91,44 @@ async function onlineLookup(query: string | undefined, latitude: number, longitu
   return items.map(item => ({ name: item.display_name, lat: Number(item.lat), lng: Number(item.lon), type: item.type })).filter(item => item.name && Number.isFinite(item.lat) && Math.abs(item.lat) <= 90 && Number.isFinite(item.lng) && Math.abs(item.lng) <= 180);
 }
 
+async function photonLookup(query: string | undefined, latitude: number, longitude: number, isReverse: boolean, signal: AbortSignal): Promise<PlaceResult[]> {
+  const url = new URL(isReverse ? "https://photon.komoot.io/reverse" : "https://photon.komoot.io/api");
+  if (isReverse) {
+    url.searchParams.set("lat", String(latitude)); url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("radius", "0.3");
+  } else url.searchParams.set("q", query!);
+  url.searchParams.set("limit", isReverse ? "1" : "5");
+  // Omitting lang preserves local Chinese place names on the public Photon server.
+  const response = await fetch(url, { signal, headers: { "User-Agent": "HaimingLifeAtlas/1.0 (+https://github.com/haimingdu20-zachary/life-atlas)" } });
+  if (!response.ok) return [];
+  const data = await response.json() as { features?: Array<{ properties?: Record<string, unknown>; geometry?: { coordinates?: number[] } }> };
+  return (data.features || []).flatMap(feature => {
+    const p = feature.properties || {};
+    const point = feature.geometry?.coordinates;
+    if (!point || !Number.isFinite(point[0]) || Math.abs(point[0]) > 180 || !Number.isFinite(point[1]) || Math.abs(point[1]) > 90) return [];
+    const parts = [p.countrycode === "CN" ? "中国" : p.country, p.state, p.city, p.county, p.district, p.locality, p.street, p.housenumber, p.name].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
+    const name = [...new Set(parts)].join(" · ");
+    if (!name) return [];
+    // Reverse results describe a nearby mapped object, not a confirmed visited venue.
+    return [{ name: isReverse ? `${name}附近` : name, lat: isReverse ? latitude : point[1], lng: isReverse ? longitude : point[0], type: String(p.type || p.osm_value || "place") }];
+  });
+}
+
 async function lookup(query: string | undefined, latitude: number, longitude: number, isReverse: boolean): Promise<LookupResult> {
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 4000);
-  try {
-    const online = await onlineLookup(query, latitude, longitude, isReverse, controller.signal);
-    if (online.length) return { results: online, source: "online" };
-  } catch { /* The bundled world index is the normal fallback. */ }
-  finally { clearTimeout(timer); }
-  return { results: isReverse ? offlineReverse(latitude, longitude) : offlineSearch(query!), source: "offline" };
+  const area = isReverse ? offlineReverse(latitude, longitude) : undefined;
+  const metadata = area ? { areaName: area[0].name } : {};
+  const providers = process.env.ATLAS_PHOTON_ENABLED === "true"
+    ? [["photon", photonLookup], ["nominatim", onlineLookup]] as const
+    : [["nominatim", onlineLookup]] as const;
+  for (const [provider, search] of providers) {
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 4000);
+    try {
+      const results = await search(query, latitude, longitude, isReverse, controller.signal);
+      if (results.length) return { results, source: "online", provider, ...metadata };
+    } catch { /* Try the independent provider before falling back to city data. */ }
+    finally { clearTimeout(timer); }
+  }
+  return { results: area || offlineSearch(query!), source: "offline", ...metadata };
 }
 
 export async function GET(request: Request) {
@@ -108,7 +138,7 @@ export async function GET(request: Request) {
   if (!query && !isReverse) return Response.json({ results: [] });
   const cacheKey = isReverse ? `r:${latitude},${longitude}` : `s:${query!.toLocaleLowerCase()}`;
   const cached = resultCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return Response.json({ results: cached.results, source: cached.source, cached: true });
+  if (cached && cached.expiresAt > Date.now()) return Response.json({ results: cached.results, source: cached.source, provider: cached.provider, areaName: cached.areaName, cached: true });
   let pending = pendingLookups.get(cacheKey);
   if (!pending) {
     pending = lookup(query, latitude, longitude, isReverse).then(result => {

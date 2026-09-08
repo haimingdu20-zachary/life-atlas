@@ -115,6 +115,10 @@ button { color: inherit; }
 .entry-card-meta i { width: 7px; height: 7px; border-radius: 50%; }
 .entry-map-card h2 { max-width: 80%; margin: 13px 0 10px; font-family: Georgia, "Songti SC", serif; font-size: 28px; font-weight: 500; line-height: 1.25; }
 .entry-card-place { display: flex; align-items: center; gap: 6px; color: #9aaba8; font-size: 10px; }
+.entry-card-place svg { flex-shrink: 0; }
+.entry-card-place span { min-width: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.entry-location-note { margin: 6px 0 14px; color: #829892; font-size: 11px; line-height: 1.6; }
+.entry-location-note a { margin-left: 5px; color: inherit; }
 .entry-card-summary { margin: 19px 0 12px; padding-left: 12px; border-left: 2px solid var(--coral); color: #d4dcd8; font-family: Georgia, "Songti SC", serif; font-size: 13px; line-height: 1.7; }
 .entry-card-detail { display: -webkit-box; overflow: hidden; color: #8fa09e; font-size: 10px; line-height: 1.8; -webkit-box-orient: vertical; -webkit-line-clamp: 5; }
 .entry-card-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 15px; }

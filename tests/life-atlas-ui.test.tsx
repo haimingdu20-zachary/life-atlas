@@ -132,6 +132,31 @@ describe("globe map experience workflows", () => {
     expect(screen.getByRole("button", { name: /记录这里/ })).toBeTruthy();
   });
 
+  it("旧的城市级地点自动显示附近详细地址，编辑确认时沿用地址且不移动选点", async () => {
+    entryCollection = [{ ...entry, locationName: "中国 · 北京" }];
+    const detailedName = "中国 · 北京市 · 测试区 · 测试路 · 测试建筑附近";
+    const defaultFetch = fetch;
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).startsWith("/api/geocode?lat=") ? Promise.resolve(Response.json({ source: "online", provider: "photon", areaName: "中国 · 北京", results: [{ name: detailedName, type: "house", lat: entry.latitude, lng: entry.longitude }] })) : defaultFetch(input, init)));
+    const user = userEvent.setup(); await renderReady();
+    await user.click(screen.getByTestId("mock-entry"));
+    expect(await screen.findByText(detailedName)).toBeTruthy();
+    expect(calls.some(call => call.method === "PATCH")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "编辑经历" }));
+    expect((screen.getByLabelText("具体地点") as HTMLInputElement).value).toBe(detailedName);
+    await user.click(screen.getByRole("button", { name: /保存为私人记忆/ }));
+    await waitFor(() => expect(calls.find(call => call.url === "/api/entries" && call.method === "PATCH")?.body).toMatchObject({ locationName: detailedName, latitude: entry.latitude, longitude: entry.longitude }));
+  });
+
+  it("自动地址不覆盖用户填写的店名", async () => {
+    entryCollection = [{ ...entry, locationName: "中国 · 用户确认的分店" }];
+    const defaultFetch = fetch;
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).startsWith("/api/geocode?lat=") ? Promise.resolve(Response.json({ source: "online", areaName: "中国 · 北京", results: [{ name: "中国 · 测试路附近", type: "house" }] })) : defaultFetch(input, init)));
+    const user = userEvent.setup(); await renderReady();
+    await user.click(screen.getByTestId("mock-entry"));
+    expect(await screen.findByText("中国 · 用户确认的分店")).toBeTruthy();
+    expect(screen.queryByText("中国 · 测试路附近")).toBeNull();
+  });
+
   it("AI 可根据真实片段完善摘要、叙事、感悟和标签，然后保存", async () => {
     const user = userEvent.setup(); await renderReady(); await user.click(screen.getByTestId("mock-map")); await screen.findByText(/西湖区/); await user.click(screen.getByRole("button", { name: /记录这里/ }));
     await screen.findByRole("heading", { name: "OpenAI 帮我整理" });
