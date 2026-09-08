@@ -5,7 +5,7 @@ import {
   BookOpen, CalendarDays, Compass, Crosshair, Download, Edit3, LoaderCircle,
   Map as MapIcon, MapPin, Plus, Route, Search, Settings2, Smartphone, Sparkles, Trash2, X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { LifeEntry, LifeMedia } from "../lib/types";
 import GlobeMap, {
   type MapFocus,
@@ -45,6 +45,7 @@ export default function LifeAtlas() {
   const [selected, setSelected] = useState<LifeEntry | null>(null);
   const [draftLocation, setDraftLocation] = useState<Coordinates | null>(null);
   const [draftPlace, setDraftPlace] = useState("");
+  const placeRequest = useRef(0);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [zoom, setZoom] = useState(1.45);
   const [viewport, setViewport] = useState<MapViewport>({ lat: 32, lng: 104, zoom: 1.45, bearing: 0 });
@@ -111,13 +112,14 @@ export default function LifeAtlas() {
   };
 
   const identifyPlace = async (coordinates: Coordinates) => {
-    setDraftPlace("正在识别城市与区域…");
+    const requestId = ++placeRequest.current;
+    setDraftPlace("正在识别具体地址…");
     try {
       const response = await fetch(`/api/geocode?lat=${coordinates.lat}&lng=${coordinates.lng}`);
       const data = await response.json() as { results: PlaceResult[] };
-      setDraftPlace(data.results?.[0]?.name || "未命名地点");
+      if (requestId === placeRequest.current) setDraftPlace(data.results?.[0]?.name || "未命名地点");
     } catch {
-      setDraftPlace("未命名地点");
+      if (requestId === placeRequest.current) setDraftPlace("未命名地点");
     }
   };
 
@@ -145,13 +147,16 @@ export default function LifeAtlas() {
       const response = await fetch(`/api/geocode?q=${encodeURIComponent(mapSearch)}`);
       const data = await response.json() as { results: PlaceResult[] };
       setPlaceResults(data.results || []);
-      if (!data.results?.length) setToast("没找到这个地方");
+      if (!data.results?.length) setToast("暂未找到这个地方，可在地图选点后手动填写具体地点");
+    } catch {
+      setToast("地点搜索暂不可用，可在地图选点后手动填写具体地点");
     } finally {
       setSearching(false);
     }
   };
 
   const choosePlace = (place: PlaceResult) => {
+    placeRequest.current += 1;
     const coordinates = { lat: place.lat, lng: place.lng };
     setMapSearch(place.name);
     setPlaceResults([]);
@@ -258,7 +263,7 @@ export default function LifeAtlas() {
 
       <form className="map-search" onSubmit={searchPlaces}>
         <Search size={17} />
-        <input value={mapSearch} onChange={event => setMapSearch(event.target.value)} placeholder="搜索城市或区县" />
+        <input value={mapSearch} onChange={event => setMapSearch(event.target.value)} placeholder="搜索城市、街道或地点" />
         {searching && <LoaderCircle className="spin" size={16} />}
         {placeResults.length > 0 && (
           <div className="map-search-results">

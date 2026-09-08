@@ -127,7 +127,7 @@ describe("globe map experience workflows", () => {
 
   it("可搜索城市并选择为记录位置", async () => {
     const user = userEvent.setup(); await renderReady();
-    const search = screen.getByPlaceholderText("搜索城市或区县"); await user.type(search, "杭州"); await user.keyboard("{Enter}");
+    const search = screen.getByPlaceholderText("搜索城市、街道或地点"); await user.type(search, "杭州"); await user.keyboard("{Enter}");
     await user.click(await screen.findByRole("button", { name: /浙江省 · 杭州市/ }));
     expect(screen.getByRole("button", { name: /记录这里/ })).toBeTruthy();
   });

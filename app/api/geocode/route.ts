@@ -9,7 +9,14 @@ type CityFeature = { geometry: { type: "Point"; coordinates: Position }; propert
 type OfflineData = { countries: CountryFeature[]; cities: CityFeature[] };
 type PlaceResult = { name: string; lat: number; lng: number; type: string };
 
-const resultCache = new Map<string, PlaceResult[]>();
+type LookupResult = { results: PlaceResult[]; source: "online" | "offline" };
+const resultCache = new Map<string, LookupResult & { expiresAt: number }>();
+const pendingLookups = new Map<string, Promise<LookupResult>>();
+
+function cacheResult(key: string, value: LookupResult) {
+  if (resultCache.size >= 500) resultCache.delete(resultCache.keys().next().value!);
+  resultCache.set(key, { ...value, expiresAt: Date.now() + (value.source === "online" ? 86_400_000 : 15_000) });
+}
 const cityZhByEnglish: Record<string, string> = {
   beijing: "北京", shanghai: "上海", guangzhou: "广州", shenzhen: "深圳", hangzhou: "杭州", nanjing: "南京", suzhou: "苏州", jiaxing: "嘉兴", ningbo: "宁波",
   chengdu: "成都", chongqing: "重庆", wuhan: "武汉", "xi'an": "西安", xian: "西安", tianjin: "天津", qingdao: "青岛", xiamen: "厦门", fuzhou: "福州",
@@ -62,41 +69,53 @@ function offlineSearch(query: string): PlaceResult[] {
   const data = bundledWorldData; const keyword = query.toLocaleLowerCase();
   const cities = data.cities.filter(city => {
     const zh = cityZhByEnglish[(city.properties.name_en || city.properties.name || "").toLocaleLowerCase()];
-    return Boolean((zh && keyword.includes(zh)) || [city.properties.name, city.properties.name_en, city.properties.local_name, city.properties.country, city.properties.admin1].some(value => value?.toLocaleLowerCase().includes(keyword)));
+    return Boolean((zh && [zh, `${zh}市`, `中国${zh}`, `中国${zh}市`].includes(keyword)) || [city.properties.name, city.properties.name_en, city.properties.local_name, city.properties.country, city.properties.admin1].some(value => value?.toLocaleLowerCase().includes(keyword)));
   }).sort((a, b) => Number(b.properties.population || 0) - Number(a.properties.population || 0)).slice(0, 5).map(city => ({ name: city.properties.country === "China" ? `中国 · ${cityDisplayName(city)}` : [city.properties.country, city.properties.admin1, cityDisplayName(city)].filter(Boolean).join(" · "), lat: city.geometry.coordinates[1], lng: city.geometry.coordinates[0], type: "city" }));
   if (cities.length) return cities;
-  return data.countries.filter(country => (country.properties.iso2 === "CN" && keyword.includes("中国")) || [country.properties.name, country.properties.name_en, country.properties.name_zh, country.properties.admin].some(value => value?.toLocaleLowerCase().includes(keyword))).slice(0, 5).map(country => ({ name: country.properties.iso2 === "CN" ? "中国" : country.properties.name_zh || country.properties.name || country.properties.admin || query, lat: Number(country.properties.label_y || 0), lng: Number(country.properties.label_x || 0), type: "country" }));
+  return data.countries.filter(country => (country.properties.iso2 === "CN" && keyword === "中国") || [country.properties.name, country.properties.name_en, country.properties.name_zh, country.properties.admin].some(value => value?.toLocaleLowerCase().includes(keyword))).slice(0, 5).map(country => ({ name: country.properties.iso2 === "CN" ? "中国" : country.properties.name_zh || country.properties.name || country.properties.admin || query, lat: Number(country.properties.label_y || 0), lng: Number(country.properties.label_x || 0), type: "country" }));
 }
 
 async function onlineLookup(query: string | undefined, latitude: number, longitude: number, isReverse: boolean, signal: AbortSignal): Promise<PlaceResult[]> {
   const url = new URL(isReverse ? "https://nominatim.openstreetmap.org/reverse" : "https://nominatim.openstreetmap.org/search");
-  if (isReverse) { url.searchParams.set("lat", String(latitude)); url.searchParams.set("lon", String(longitude)); url.searchParams.set("zoom", "12"); }
+  if (isReverse) { url.searchParams.set("lat", String(latitude)); url.searchParams.set("lon", String(longitude)); url.searchParams.set("zoom", "18"); }
   else { url.searchParams.set("q", query!); url.searchParams.set("limit", "5"); }
   url.searchParams.set("format", "jsonv2"); url.searchParams.set("accept-language", "zh-CN");
   const response = await fetch(url, { signal, headers: { "User-Agent": "LifeAtlas/1.0" } });
   if (!response.ok) return [];
   if (isReverse) {
     const item = await response.json() as { display_name?: string; lat?: string; lon?: string; type?: string };
-    return item.display_name ? [{ name: item.display_name, lat: Number(item.lat), lng: Number(item.lon), type: item.type || "place" }] : [];
+    // The address describes the selected point; a nearby building must not move the pin.
+    return item.display_name ? [{ name: item.display_name, lat: latitude, lng: longitude, type: item.type || "place" }] : [];
   }
   const items = await response.json() as Array<{ display_name: string; lat: string; lon: string; type: string }>;
-  return items.map(item => ({ name: item.display_name, lat: Number(item.lat), lng: Number(item.lon), type: item.type }));
+  return items.map(item => ({ name: item.display_name, lat: Number(item.lat), lng: Number(item.lon), type: item.type })).filter(item => item.name && Number.isFinite(item.lat) && Math.abs(item.lat) <= 90 && Number.isFinite(item.lng) && Math.abs(item.lng) <= 180);
+}
+
+async function lookup(query: string | undefined, latitude: number, longitude: number, isReverse: boolean): Promise<LookupResult> {
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const online = await onlineLookup(query, latitude, longitude, isReverse, controller.signal);
+    if (online.length) return { results: online, source: "online" };
+  } catch { /* The bundled world index is the normal fallback. */ }
+  finally { clearTimeout(timer); }
+  return { results: isReverse ? offlineReverse(latitude, longitude) : offlineSearch(query!), source: "offline" };
 }
 
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const query = searchParams.get("q")?.trim(); const latitude = Number(searchParams.get("lat")); const longitude = Number(searchParams.get("lng"));
-  const isReverse = Number.isFinite(latitude) && Number.isFinite(longitude) && searchParams.has("lat") && searchParams.has("lng");
+  const isReverse = Boolean(searchParams.get("lat")?.trim() && searchParams.get("lng")?.trim()) && Number.isFinite(latitude) && Math.abs(latitude) <= 90 && Number.isFinite(longitude) && Math.abs(longitude) <= 180;
   if (!query && !isReverse) return Response.json({ results: [] });
-  const cacheKey = isReverse ? `r:${latitude.toFixed(2)},${longitude.toFixed(2)}` : `s:${query!.toLocaleLowerCase()}`;
-  const cached = resultCache.get(cacheKey); if (cached) return Response.json({ results: cached, source: "cache" });
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 800);
-  try {
-    const online = await onlineLookup(query, latitude, longitude, isReverse, controller.signal);
-    if (online.length) { resultCache.set(cacheKey, online); return Response.json({ results: online, source: "online" }); }
-  } catch { /* The bundled world index is the normal fallback. */ }
-  finally { clearTimeout(timer); }
-  const local = isReverse ? offlineReverse(latitude, longitude) : offlineSearch(query!);
-  resultCache.set(cacheKey, local);
-  return Response.json({ results: local, source: "offline" });
+  const cacheKey = isReverse ? `r:${latitude},${longitude}` : `s:${query!.toLocaleLowerCase()}`;
+  const cached = resultCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return Response.json({ results: cached.results, source: cached.source, cached: true });
+  let pending = pendingLookups.get(cacheKey);
+  if (!pending) {
+    pending = lookup(query, latitude, longitude, isReverse).then(result => {
+      cacheResult(cacheKey, result);
+      return result;
+    }).finally(() => pendingLookups.delete(cacheKey));
+    pendingLookups.set(cacheKey, pending);
+  }
+  return Response.json(await pending);
 }

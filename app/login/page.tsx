@@ -17,7 +17,7 @@ export default function Login() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "连接失败，请稍后再试"); setBusy(false); }
   }
   return <main style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 24, background: "radial-gradient(circle at 50% 35%, #173a42, #061116 70%)", color: "#e3eeea" }}>
-    <form onSubmit={unlock} style={{ width: "100%", maxWidth: 360, display: "grid", gap: 18 }}>
+    <form method="post" action="/api/login" onSubmit={unlock} style={{ width: "100%", maxWidth: 360, display: "grid", gap: 18 }}>
       <Compass size={42} color="#ff9c69" />
       <h1 style={{ margin: 0, fontSize: 28 }}>你的人生地图</h1>
       <p style={{ margin: 0, color: "#9ab2ad", lineHeight: 1.7 }}>把走过的地方，留成自己的故事。<br />输入访问口令，打开你的私人记录。</p>

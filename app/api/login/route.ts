@@ -11,10 +11,14 @@ export async function POST(request: Request) {
   if (++attempts > 20) return Response.json({ error: "尝试次数较多，请一分钟后再试" }, { status: 429 });
   if (Number(request.headers.get("content-length")) > 4096) return new Response(null, { status: 413 });
   let password: unknown;
-  try { password = (await request.json() as { password?: unknown })?.password; } catch { return new Response(null, { status: 400 }); }
+  const nativeForm = request.headers.get("content-type")?.includes("application/x-www-form-urlencoded");
+  try { password = nativeForm ? (await request.formData()).get("password") : (await request.json() as { password?: unknown })?.password; } catch { return new Response(null, { status: 400 }); }
   if (typeof password !== "string" || password.length > 256 || !validPassword(password)) return Response.json({ error: "访问口令不正确" }, { status: 401 });
-  return Response.json({ ok: true }, { headers: {
+  const headers = {
     "Cache-Control": "no-store",
     "Set-Cookie": `${SESSION_COOKIE}=${createSession()}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_SECONDS}`,
-  } });
+  };
+  // A submit before hydration must keep the password out of the URL.
+  if (nativeForm) return new Response(null, { status: 303, headers: { ...headers, Location: "/" } });
+  return Response.json({ ok: true }, { headers });
 }

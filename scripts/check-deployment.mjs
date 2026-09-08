@@ -25,7 +25,8 @@ try {
   assert.equal(created.status, 201, "Travel record must save");
   entryId = (await created.json()).entry?.id;
   assert.ok(entryId?.endsWith(testId), "Only the disposable test record may be used");
-  const updated = await fetch(`${origin}/api/entries`, { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ ...input, id: entryId, title: "部署验证临时记录（已编辑）" }) });
+  const locationName = "部署验证 · 测试街道 · 测试地点";
+  const updated = await fetch(`${origin}/api/entries`, { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ ...input, id: entryId, title: "部署验证临时记录（已编辑）", locationName, latitude: 0.01234, longitude: 0.02345 }) });
   assert.equal(updated.status, 200);
   const form = new FormData();
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9e8AAAAASUVORK5CYII=", "base64");
@@ -40,7 +41,11 @@ try {
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), png);
   assert.equal((await fetch(`${origin}${media.url}`)).status, 401, "Photos require private login");
   const reloaded = await fetch(`${origin}/api/entries`, { headers });
-  assert.ok((await reloaded.json()).entries.some(entry => entry.id === entryId && entry.title.endsWith("（已编辑）")), "Saved edits must survive a new request");
+  const saved = (await reloaded.json()).entries.find(entry => entry.id === entryId);
+  assert.ok(saved?.title.endsWith("（已编辑）"), "Saved edits must survive a new request");
+  assert.equal(saved.locationName, locationName, "The complete venue name must persist");
+  assert.equal(saved.latitude, 0.01234);
+  assert.equal(saved.longitude, 0.02345);
   console.log("Live private login, record creation/edit/read and photo upload/download passed.");
 } finally {
   if (entryId?.endsWith(testId)) {

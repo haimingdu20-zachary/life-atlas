@@ -815,6 +815,24 @@ button { color: inherit; }
 .compact-context > span, .compact-context > label { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 9px; background: rgba(255,255,255,.035); color: #91a19f; font-size: 9px; }
 .compact-context > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compact-context input { border: 0; outline: 0; background: transparent; color: #b9c4c1; font-size: 9px; }
+.memory-location { margin: 0 0 12px; }
+.memory-location > label { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; color: #b9c4c1; font-size: 12px; }
+.memory-location-control { display: flex; gap: 8px; }
+.memory-location-control input { min-width: 0; flex: 1; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.035); color: #e5eae6; font-size: 16px; }
+.memory-location-control input:focus { outline: 1px solid var(--coral); }
+.memory-location-control input::placeholder { color: #758a86; }
+.memory-location-control > button { flex-shrink: 0; display: flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,150,101,.08); color: #e5b79b; font-size: 12px; cursor: pointer; }
+.memory-location-control > button:disabled { opacity: .5; cursor: default; }
+.memory-location p { margin: 7px 0; color: #8da49e; font-size: 11px; line-height: 1.6; }
+.memory-location p.memory-location-message { color: #e5b79b; }
+.memory-location-coordinates { color: #81958f; font-size: 10px; }
+.memory-location-results { margin: 8px 0; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: #10232a; }
+.memory-location-results > button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 7px; border: 0; border-radius: 5px; background: transparent; color: #c1d2cd; font-size: 12px; line-height: 1.6; text-align: left; cursor: pointer; }
+.memory-location-results > button:hover { background: rgba(255,255,255,.06); }
+.memory-location-results > button svg, .memory-location-results > button small { flex-shrink: 0; }
+.memory-location-results > button span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.memory-location-results small { display: block; padding: 4px 7px; color: #8da49e; font-size: 10px; }
+.memory-location-results a { color: inherit; }
 .memory-title-input { width: 100%; padding: 10px 0 13px; border: 0; border-bottom: 1px solid rgba(255,255,255,.09); outline: 0; background: transparent; color: #e5eae6; font-family: Georgia, "Songti SC", serif; font-size: 24px; }
 .memory-title-input::placeholder { color: #5f7270; }
 .story-input-wrap { margin-top: 18px; overflow: hidden; border: 1px solid rgba(255,150,101,.24); border-radius: 15px; background: rgba(255,150,101,.025); }

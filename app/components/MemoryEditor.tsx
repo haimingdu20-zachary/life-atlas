@@ -8,12 +8,13 @@ import {
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { LifeEntry, LifeMedia, LifeTrack } from "../lib/types";
 import { aiRequestHeaders } from "../lib/ai-settings";
+import MemoryLocationField from "./MemoryLocationField";
 
 type Coordinates = { lat: number; lng: number };
 export type PendingMedia = { id: string; file: File; url: string; stage: "start" | "moment" | "end"; capturedAt?: string; latitude?: number; longitude?: number };
 type Suggestion = { title: string; summary: string; detail: string; lessons: string; emotion: string; emotions: string[]; lifePhase: string; people: string[]; tags: string[] };
 type SuggestionOriginal = { title: string; summary: string; detail: string; lessons: string };
-type Draft = { title?: string; rawDetail?: string; summary?: string; story?: string; lessons?: string; people?: string; tags?: string; emotion?: string; emotions?: string[]; lifePhase?: string; visibility?: string; occurredAt?: string; endedAt?: string; category?: string; trackId?: string };
+type Draft = { locationName?: string; latitude?: number; longitude?: number; title?: string; rawDetail?: string; summary?: string; story?: string; lessons?: string; people?: string; tags?: string; emotion?: string; emotions?: string[]; lifePhase?: string; visibility?: string; occurredAt?: string; endedAt?: string; category?: string; trackId?: string };
 
 export type MemoryEditorProps = {
   initial: LifeEntry | null;
@@ -66,8 +67,12 @@ export default function MemoryEditor({ initial, coordinates, placeName, onClose,
   const [endedAt, setEndedAt] = useState(draft.endedAt ?? (initial?.endedAt ? localDateTime(initial.endedAt) : ""));
   const [category, setCategory] = useState(draft.category ?? initial?.category ?? "growth");
   const [trackId, setTrackId] = useState(draft.trackId ?? initial?.trackId ?? "");
-  const [latitude, setLatitude] = useState(coordinates.lat);
-  const [longitude, setLongitude] = useState(coordinates.lng);
+  const [customLocation, setCustomLocation] = useState<string | null>(draft.locationName ?? null);
+  const identifyingPlace = placeName.startsWith("正在识别");
+  const locationName = customLocation ?? (identifyingPlace || placeName === "未命名地点" ? "" : placeName);
+  const savedLocationName = locationName.trim() || "未命名地点";
+  const [latitude, setLatitude] = useState(draft.latitude ?? coordinates.lat);
+  const [longitude, setLongitude] = useState(draft.longitude ?? coordinates.lng);
   const [media, setMedia] = useState<PendingMedia[]>([]);
   const [savedMedia, setSavedMedia] = useState<LifeMedia[]>([]);
   const [tracks, setTracks] = useState<LifeTrack[]>([]);
@@ -121,12 +126,12 @@ export default function MemoryEditor({ initial, coordinates, placeName, onClose,
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const value: Draft = { title, rawDetail, summary, story, lessons, people, tags, emotion, emotions: selectedEmotions, lifePhase, visibility, occurredAt, endedAt, category, trackId };
+      const value: Draft = { locationName: customLocation ?? undefined, latitude, longitude, title, rawDetail, summary, story, lessons, people, tags, emotion, emotions: selectedEmotions, lifePhase, visibility, occurredAt, endedAt, category, trackId };
       window.localStorage.setItem(draftKey, JSON.stringify(value));
       setSavedDraftAt(new Date());
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [draftKey, title, rawDetail, summary, story, lessons, people, tags, emotion, selectedEmotions, lifePhase, visibility, occurredAt, endedAt, category, trackId]);
+  }, [draftKey, customLocation, latitude, longitude, title, rawDetail, summary, story, lessons, people, tags, emotion, selectedEmotions, lifePhase, visibility, occurredAt, endedAt, category, trackId]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (rawDetail.trim() || media.length) { event.preventDefault(); event.returnValue = ""; } };
@@ -230,7 +235,7 @@ export default function MemoryEditor({ initial, coordinates, placeName, onClose,
     if (rawDetail.trim().length < 8) return setError("请先写下至少一两句真实片段。");
     setAiBusy(true); setError("");
     try {
-      const response = await fetch("/api/ai/refine", { method: "POST", headers: { "Content-Type": "application/json", ...aiRequestHeaders() }, body: JSON.stringify({ title, locationName: placeName, occurredAt, detail: rawDetail, polishedDetail: story, summary, lessons, people, tags: tags.split(/[,，\s]+/).filter(Boolean), tone }) });
+      const response = await fetch("/api/ai/refine", { method: "POST", headers: { "Content-Type": "application/json", ...aiRequestHeaders() }, body: JSON.stringify({ title, locationName: savedLocationName, occurredAt, detail: rawDetail, polishedDetail: story, summary, lessons, people, tags: tags.split(/[,，\s]+/).filter(Boolean), tone }) });
       const data = await response.json() as { refined?: Suggestion; error?: string; mode?: "openai" | "deepseek" | "local" };
       if (!response.ok || !data.refined) throw new Error(data.error || "整理失败");
       setSuggestionOriginal({ title, summary, detail: rawDetail, lessons });
@@ -262,7 +267,7 @@ export default function MemoryEditor({ initial, coordinates, placeName, onClose,
     setBusy(true); setError("");
     const finalTitle = title.trim() || suggestion?.title || summary.trim() || rawDetail.trim().slice(0, 24) || "未命名经历";
     try {
-      await onSave({ id: initial?.id, title: finalTitle, occurredAt: new Date(occurredAt).toISOString(), endedAt: endedAt ? new Date(endedAt).toISOString() : null, locationName: placeName, latitude, longitude, category, status: initial?.status || "memory", mood: initial?.mood || 4, significance: initial?.significance || 3, summary, rawDetail, detail: story.trim() || rawDetail, lessons, people, emotion, emotions: selectedEmotions, lifePhase, visibility, tags: tags.split(/[,，\s]+/).filter(Boolean), trackId: trackId || null }, media);
+      await onSave({ id: initial?.id, title: finalTitle, occurredAt: new Date(occurredAt).toISOString(), endedAt: endedAt ? new Date(endedAt).toISOString() : null, locationName: savedLocationName, latitude, longitude, category, status: initial?.status || "memory", mood: initial?.mood || 4, significance: initial?.significance || 3, summary, rawDetail, detail: story.trim() || rawDetail, lessons, people, emotion, emotions: selectedEmotions, lifePhase, visibility, tags: tags.split(/[,，\s]+/).filter(Boolean), trackId: trackId || null }, media);
       window.localStorage.removeItem(draftKey);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "保存失败"); setBusy(false); }
   };
@@ -284,7 +289,8 @@ export default function MemoryEditor({ initial, coordinates, placeName, onClose,
         <div className="studio-layout">
           <div className="studio-write">
             <section className="quick-fields">
-              <div className="compact-context"><span><MapPin size={14} />{placeName}</span><label><Clock3 size={14} /><input type="datetime-local" value={occurredAt} onChange={event => setOccurredAt(event.target.value)} /></label></div>
+              <div className="compact-context"><label><Clock3 size={14} /><input type="datetime-local" aria-label="经历时间" value={occurredAt} onChange={event => setOccurredAt(event.target.value)} /></label></div>
+              <MemoryLocationField value={locationName} identifying={identifyingPlace && customLocation === null} latitude={latitude} longitude={longitude} onChange={setCustomLocation} onSelect={place => { setCustomLocation(place.name); setLatitude(place.lat); setLongitude(place.lng); }} />
               <input className="memory-title-input" value={title} onChange={event => setTitle(event.target.value)} placeholder="经历标题（可不填，由 AI 生成）" />
               <div className="story-input-wrap"><textarea value={rawDetail} onChange={event => setRawDetail(event.target.value)} rows={9} placeholder="发生了什么？\n\n不用组织语言，可以直接粘贴一段杂乱的描述。" required /><div className="story-tools"><button type="button" className={recording ? "recording" : ""} onClick={startVoiceInput}><Mic size={15} />{recording ? "停止转写" : "语音转写"}</button><span>{rawDetail.length} 字</span></div></div>
             </section>
@@ -334,7 +340,7 @@ export default function MemoryEditor({ initial, coordinates, placeName, onClose,
 
           <aside className="memory-preview">
             <div className="preview-label"><span>LIVE PREVIEW</span><small>保存后在地图上的样子</small></div>
-            <div className="preview-map"><div className="preview-grid" /><span className="preview-dot" style={{ boxShadow: `0 0 0 10px ${activeEmotion[2]}24, 0 0 35px ${activeEmotion[2]}`, background: activeEmotion[2] }} /><div className="preview-coordinates"><MapPin size={13} />{placeName}<small>{latitude.toFixed(4)}, {longitude.toFixed(4)}</small></div></div>
+            <div className="preview-map"><div className="preview-grid" /><span className="preview-dot" style={{ boxShadow: `0 0 0 10px ${activeEmotion[2]}24, 0 0 35px ${activeEmotion[2]}`, background: activeEmotion[2] }} /><div className="preview-coordinates"><MapPin size={13} />{savedLocationName}<small>{latitude.toFixed(5)}, {longitude.toFixed(5)}</small></div></div>
             <article className="preview-memory-card">{cover ? <img className="preview-cover" src={cover} alt="记忆封面预览" /> : <div className="preview-cover empty"><Camera size={23} /><span>添加照片后会成为记忆封面</span></div>}<div className="preview-card-body"><div className="preview-meta"><i style={{ background: activeEmotion[2] }} />{activeEmotionLabels}{lifePhase ? ` · ${activePhase[1]}` : ""} · {new Date(occurredAt).toLocaleDateString("zh-CN")}</div><h3>{title || suggestion?.title || "这段经历的标题"}</h3><p>{summary || suggestion?.summary || rawDetail.slice(0, 70) || "你写下的一句话摘要会出现在这里。"}</p>{people && <span className="preview-people"><Users size={12} />{people}</span>}<div className="preview-tags">{tags.split(/[,，\s]+/).filter(Boolean).slice(0, 4).map(tag => <span key={tag}>#{tag}</span>)}</div></div></article>
             <div className="preview-timeline"><strong>照片时间线</strong>{["start", "moment", "end"].map((stage, index) => <div key={stage}><i className={media.some(item => item.stage === stage) ? "filled" : ""}>{index + 1}</i><span>{stage === "start" ? "开始" : stage === "moment" ? "经过" : "结束"}</span></div>)}</div>
             <div className="privacy-note"><Lock size={13} />{visibility === "private" ? "默认仅你自己可见" : visibility === "shared" ? "仅指定的人可见" : "这段记忆将公开"}</div>

@@ -25,6 +25,14 @@ test("standalone server protects pages and APIs and supports private login", asy
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.equal(ready, true, "Server must start");
+    const loginHtml = await (await fetch(`${base}/login`)).text();
+    const loginForm = loginHtml.match(/<form\b[^>]*>/)?.[0] || "";
+    assert.match(loginForm, /method="post"/);
+    assert.match(loginForm, /action="\/api\/login"/);
+    const nativeLogin = await fetch(`${base}/api/login`, { method: "POST", redirect: "manual", headers: { Origin: base }, body: new URLSearchParams({ password }) });
+    assert.equal(nativeLogin.status, 303, "A login before hydration must use POST and redirect");
+    assert.equal(nativeLogin.headers.get("location"), "/");
+    assert.ok(nativeLogin.headers.get("set-cookie")?.includes("HttpOnly"));
     const home = await fetch(base, { redirect: "manual" });
     assert.ok([302, 307].includes(home.status));
     assert.equal(new URL(home.headers.get("location"), base).pathname, "/login");
